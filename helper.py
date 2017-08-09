@@ -6,8 +6,6 @@ def read_sheet(path, index):
     workbook = xlrd.open_workbook(path)
     worksheet = workbook.sheet_by_index(index)
 
-    # Change this depending on how many header rows are present
-    # Set to 0 if you want to include the header data.
     offset = 0
 
     rows = []
@@ -20,17 +18,52 @@ def read_sheet(path, index):
                 a1 = worksheet.cell_value(rowx=row, colx=col)
                 a1_as_datetime = datetime.datetime(*xlrd.xldate_as_tuple(a1, workbook.datemode))
                 date = str(a1_as_datetime)
-                # print date.split()[0]
-                # print 'datetime: %s' % a1_as_datetime
                 r.append(date.split()[0])
             elif type(worksheet.cell_value(i, j)) is not float:
                 r.append(worksheet.cell_value(i, j).encode("utf-8"))
             else:
                 r.append(worksheet.cell_value(i, j))
         rows.append(r)
-    print (len(rows))
-    print (offset)
-    print ('Got %d rows' % (len(rows) - offset))
-    # print (rows[0])  # Print column headings
-    # print (rows[offset])  # Print first data row sample
+
     return rows
+
+def initialize_team_data(team_data):
+    teams = {}
+
+    for team in team_data:
+        teams[team[0]] = {
+            "Division": team[1],
+            "Conference": team[2],
+            "Games": 0,
+            "Wins": 0,
+            "Losses": 0,
+            "Eliminated": False
+        }
+
+    return teams
+
+def elimination_check(losing_team, teams):
+    playoff_teams = 0
+    tiebreak_teams = []
+
+    # Break it down by conference
+    conf = (team for team in teams if teams[team]["Conference"] == teams[losing_team]["Conference"])
+
+    for team in conf:
+        games_left = 82 - teams[losing_team]["Games"]
+        if teams[team]["Wins"] == games_left + teams[losing_team]["Wins"]:
+            tiebreak_teams += team
+        elif teams[team]["Wins"] > games_left + teams[losing_team]["Wins"]:
+            playoff_teams += 1
+        if playoff_teams == 8:
+            print losing_team + " eliminated from playoff contention"
+            teams[losing_team]["Eliminated"] = True
+            return teams
+
+    return teams
+
+
+
+
+
+
