@@ -42,7 +42,7 @@ def initialize_team_data(team_data):
 
     return teams
 
-def elimination_check(losing_team, teams):
+def loser_elimination_check(losing_team, teams, date):
     playoff_teams = 0
     tiebreak_teams = []
 
@@ -56,12 +56,48 @@ def elimination_check(losing_team, teams):
         elif teams[team]["Wins"] > games_left + teams[losing_team]["Wins"]:
             playoff_teams += 1
         if playoff_teams == 8:
-            print losing_team + " eliminated from playoff contention"
+            print losing_team + " eliminated from playoff contention on " + date
             teams[losing_team]["Eliminated"] = True
             return teams
 
     return teams
 
+def determine_last_place(conf, teams):
+    # Find the lowest winning non-eliminated team
+    worst_non_elim_team = ""
+    non_elim_win_perc = 1.0
+
+    playoff_teams = []
+
+    for team in conf:
+        if not teams[team]["Eliminated"]:
+            win_perc = teams[team]["Wins"] / float(teams[team]["Games"])
+            playoff_teams.append((team,win_perc))
+
+    playoff_teams = sorted(playoff_teams, key=lambda x: x[1], reverse=True)
+    # Playing around
+    playoff_teams = playoff_teams[:9]
+
+    # Determined that there were no 3-way ties for the 6th seed by checking:
+    # playoff_teams[5][1] == playoff_teams[6][1] and playoff_teams[6][1] == playoff_teams[7][1]
+    # Therefore, we must break the two-way tie for 7th place, then see if the 8th place
+    # team can break the tie with elimination-eligible non-playoff teams
+    if playoff_teams[7][1] == playoff_teams[8][1]:
+        print playoff_teams[7][0] + " and " + playoff_teams[8][0]
+
+    return worst_non_elim_team, non_elim_win_perc
+
+
+def winner_elimination_check(winning_team, teams, date):
+
+   # Break it down by conference
+    conf = (team for team in teams if teams[team]["Conference"] == teams[winning_team]["Conference"])
+
+    worst_team_alive, win_perc = determine_last_place(conf, teams)
+
+    # todo: 2 teams could get eliminated from 1 win. possibly find lowest win totals
+
+    return teams
 
 
 

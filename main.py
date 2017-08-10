@@ -26,19 +26,21 @@ def main(args):
         if current_date != score[0]:
             current_date = score[0]
         # Record result
+        teams[score[1]]["Games"] += 1
+        teams[score[2]]["Games"] += 1
         if score[5] == "Home":
             teams[score[1]]["Wins"] += 1
             teams[score[2]]["Losses"] += 1
             if not teams[score[2]]["Eliminated"] and tiebreak_check:
-                teams = elimination_check(score[2], teams)                    
+                teams = loser_elimination_check(score[2], teams, current_date)
+            if not teams[score[1]]["Eliminated"] and tiebreak_check:
+                teams = winner_elimination_check(score[1], teams, current_date)                
         else:
             teams[score[2]]["Wins"] += 1
             teams[score[1]]["Losses"] += 1
             if not teams[score[1]]["Eliminated"] and tiebreak_check:
-                teams = elimination_check(score[1], teams)     
+                teams = loser_elimination_check(score[1], teams, score[0])     
 
-        teams[score[1]]["Games"] += 1
-        teams[score[2]]["Games"] += 1
         # Check for elimination
         if not tiebreak_check:
             # print highest_game_total
@@ -46,15 +48,7 @@ def main(args):
             if highest_game_total >= 41: # Start checking for tiebreakers
                 tiebreak_check = True
 
-        # break
-        # print "u"
-        # print tiebreak_check
-
-
-    # for team in teams:
-    #     print team + " wins: " + str(teams[team]["Wins"])
-
-
+    # todo: each time a team wins, they might eliminate somebody
     # todo: figure out how to write to xlsx file
 
 if __name__ == "__main__":
