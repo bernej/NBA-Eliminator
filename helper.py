@@ -29,16 +29,31 @@ def read_sheet(path, index):
 
 def initialize_team_data(team_data):
     teams = {}
+    team_names = []
 
     for team in team_data:
+        team_names.append(team[0])
         teams[team[0]] = {
             "Division": team[1],
             "Conference": team[2],
             "Games": 0,
             "Wins": 0,
             "Losses": 0,
-            "Eliminated": False
+            "Eliminated": False,
+            "Schedule": {}
         }
+
+    # Keep a record of games against each other.
+    for team in teams:
+        # Get 29 other teams
+        other_teams = (other_team for other_team in teams if team != other_team)
+        # Keep track of team's record against every other team
+        for other_team in other_teams:
+            teams[team]["Schedule"][other_team] = {
+                "Games": 0,
+                "Wins": 0,
+                "Losses": 0
+            }
 
     return teams
 
@@ -47,9 +62,15 @@ def loser_elimination_check(losing_team, teams, date):
     tiebreak_teams = []
 
     # Break it down by conference
-    conf = (team for team in teams if teams[team]["Conference"] == teams[losing_team]["Conference"])
+    conf = []
+    for team in teams:
+        if teams[team]["Conference"] == teams[losing_team]["Conference"]:
+            conf.append(team)
+
+    worst_team_alive, win_perc = determine_8th_place(conf, teams)
 
     for team in conf:
+        # print 'yo'
         games_left = 82 - teams[losing_team]["Games"]
         if teams[team]["Wins"] == games_left + teams[losing_team]["Wins"]:
             tiebreak_teams += team
@@ -62,7 +83,10 @@ def loser_elimination_check(losing_team, teams, date):
 
     return teams
 
-def determine_last_place(conf, teams):
+# Helper function to determine the 8th place team. This team will then be cross-examined
+# against the non-eliminated, non-playoff teams to see if it owns tiebreakers
+def determine_8th_place(conf, teams):
+    
     # Find the lowest winning non-eliminated team
     worst_non_elim_team = ""
     non_elim_win_perc = 1.0
@@ -74,26 +98,50 @@ def determine_last_place(conf, teams):
             win_perc = teams[team]["Wins"] / float(teams[team]["Games"])
             playoff_teams.append((team,win_perc))
 
+    # Sort the playoff teams by descending record
     playoff_teams = sorted(playoff_teams, key=lambda x: x[1], reverse=True)
-    # Playing around
+    
+    # There could exist a tie for 8th place. So, there needs to be a tiebreaker to determine whose 8th.
+    # Playing around with the results, I found that there never existed a 3-way tie for 6th or 8th and a 4-way tie for 6th.
+    # However, there did exist cases with 2-way ties for 7th, 8th, and a 3-way tie for 7th.
+    # In order to handle these scenarios, I will consider 9 'playoff' teams in case one of these ties exist.
     playoff_teams = playoff_teams[:9]
 
-    # Determined that there were no 3-way ties for the 6th seed by checking:
-    # playoff_teams[5][1] == playoff_teams[6][1] and playoff_teams[6][1] == playoff_teams[7][1]
-    # Therefore, we must break the two-way tie for 7th place, then see if the 8th place
-    # team can break the tie with elimination-eligible non-playoff teams
-    if playoff_teams[7][1] == playoff_teams[8][1]:
-        print playoff_teams[7][0] + " and " + playoff_teams[8][0]
+    # In all of these scenarios, the 8th seed must be determined.
+    # There exists a 3-way tie for 7th.
+    if len(playoff_teams) == 9 and playoff_teams[6][1] == playoff_teams[7][1] == playoff_teams[8][1]:
+        # Playing around with the results, there was never a division leader involved in a 3-way tie for 7th. Next tiebreak:
+
+
+
+    # There exists a tie for 8th.
+    elif len(playoff_teams) == 9 and playoff_teams[7][1] == playoff_teams[8][1]:
+        x = 1
+        # print "tie for 8th between: " + playoff_teams[7][0] + " and " + playoff_teams[8][0]
+    # There exists a tie for 7th.
+    elif playoff_teams[6][1] == playoff_teams[7][1]:
+        x = 1
+        # print "tie for 7th between: " + playoff_teams[6][0] + " and " + playoff_teams[7][0]
 
     return worst_non_elim_team, non_elim_win_perc
 
 
-def winner_elimination_check(winning_team, teams, date):
+# todo: instead of checking for elimination after every result, check after every date. less work. this will be one function instead of two.
+# combine the two elimination check functions and call the new function when the date changes
 
-   # Break it down by conference
-    conf = (team for team in teams if teams[team]["Conference"] == teams[winning_team]["Conference"])
+def elimination_check(teams, date):
 
-    worst_team_alive, win_perc = determine_last_place(conf, teams)
+    # Break it down by conference
+    east = []
+    west = []
+    
+    for team in teams:
+        if teams[team]["Conference"] == "East":
+            east.append(team)
+        else:
+            west.append(team)
+
+    worst_team_alive, win_perc = determine_8th_place(conf, teams)
 
     # todo: 2 teams could get eliminated from 1 win. possibly find lowest win totals
 

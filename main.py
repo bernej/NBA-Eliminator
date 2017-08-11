@@ -22,29 +22,52 @@ def main(args):
     tiebreak_check = False
 
     for score in scores:
+
+        # Grabbing the home and away teams from the score result
+        home = score[1]
+        away = score[2]
+
         # Check for new date
         if current_date != score[0]:
+            # If it's a new date, check for eliminations on previous date
+            if tiebreak_check:
+                teams = elimination_check(teams, current_date)
+            # Update the date
             current_date = score[0]
-        # Record result
-        teams[score[1]]["Games"] += 1
-        teams[score[2]]["Games"] += 1
-        if score[5] == "Home":
-            teams[score[1]]["Wins"] += 1
-            teams[score[2]]["Losses"] += 1
-            if not teams[score[2]]["Eliminated"] and tiebreak_check:
-                teams = loser_elimination_check(score[2], teams, current_date)
-            if not teams[score[1]]["Eliminated"] and tiebreak_check:
-                teams = winner_elimination_check(score[1], teams, current_date)                
-        else:
-            teams[score[2]]["Wins"] += 1
-            teams[score[1]]["Losses"] += 1
-            if not teams[score[1]]["Eliminated"] and tiebreak_check:
-                teams = loser_elimination_check(score[1], teams, score[0])     
+        
+        # Increment games
+        teams[home]["Games"] += 1
+        teams[away]["Games"] += 1
+        teams[home]["Schedule"][away]["Games"] += 1
+        teams[away]["Schedule"][home]["Games"] += 1
 
-        # Check for elimination
+        # Record winner and loser
+        if score[5] == "Home":      #Home team won
+            teams[home]["Wins"] += 1
+            teams[away]["Losses"] += 1
+            teams[home]["Schedule"][away]["Wins"] += 1
+            teams[away]["Schedule"][home]["Losses"] += 1
+
+            # if not teams[away]["Eliminated"] and tiebreak_check:
+            #     teams = loser_elimination_check(away, teams, current_date)
+            # if not teams[home]["Eliminated"] and tiebreak_check:
+            #     teams = winner_elimination_check(home, teams, current_date)                
+        else:                       #Away team won
+            teams[away]["Wins"] += 1
+            teams[home]["Losses"] += 1
+            teams[home]["Schedule"][away]["Losses"] += 1
+            teams[away]["Schedule"][home]["Wins"] += 1
+
+            # if not teams[home]["Eliminated"] and tiebreak_check:
+            #     teams = loser_elimination_check(home, teams, current_date)     
+            # if not teams[away]["Eliminated"] and tiebreak_check:
+            #     teams = winner_elimination_check(away, teams, current_date)   
+        
+        # Only check for elimination tiebreakers after 41 games played in the season.
+        # To limit unnecessary checks.
         if not tiebreak_check:
             # print highest_game_total
-            highest_game_total = max(teams[score[1]]["Games"], teams[score[2]]["Games"])
+            highest_game_total = max(teams[home]["Games"], teams[away]["Games"])
             if highest_game_total >= 41: # Start checking for tiebreakers
                 tiebreak_check = True
 
