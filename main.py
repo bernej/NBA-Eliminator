@@ -37,41 +37,29 @@ def main(args):
         
         # Increment games
         teams[home]["Games"] += 1
-        teams[away]["Games"] += 1
         teams[home]["Schedule"][away]["Games"] += 1
+        teams[away]["Games"] += 1
         teams[away]["Schedule"][home]["Games"] += 1
 
         # Record winner and loser
         if score[5] == "Home":      #Home team won
             teams[home]["Wins"] += 1
-            teams[away]["Losses"] += 1
             teams[home]["Schedule"][away]["Wins"] += 1
+            teams[away]["Losses"] += 1
             teams[away]["Schedule"][home]["Losses"] += 1
-
-            # if not teams[away]["Eliminated"] and tiebreak_check:
-            #     teams = loser_elimination_check(away, teams, current_date)
-            # if not teams[home]["Eliminated"] and tiebreak_check:
-            #     teams = winner_elimination_check(home, teams, current_date)                
+               
         else:                       #Away team won
             teams[away]["Wins"] += 1
+            teams[away]["Schedule"][home]["Wins"] += 1
             teams[home]["Losses"] += 1
             teams[home]["Schedule"][away]["Losses"] += 1
-            teams[away]["Schedule"][home]["Wins"] += 1
-
-            # if not teams[home]["Eliminated"] and tiebreak_check:
-            #     teams = loser_elimination_check(home, teams, current_date)     
-            # if not teams[away]["Eliminated"] and tiebreak_check:
-            #     teams = winner_elimination_check(away, teams, current_date)   
         
-        # Only check for elimination tiebreakers after 41 games played in the season.
-        # To limit unnecessary checks.
+        # Only check for elimination tiebreakers after a team has played 41 games in the season, to limit unnecesary checks.
         if not tiebreak_check:
-            # print highest_game_total
             highest_game_total = max(teams[home]["Games"], teams[away]["Games"])
             if highest_game_total >= 41: # Start checking for tiebreakers
                 tiebreak_check = True
 
-    # todo: each time a team wins, they might eliminate somebody
     # todo: figure out how to write to xlsx file
 
 if __name__ == "__main__":

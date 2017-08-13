@@ -1,4 +1,4 @@
-import datetime, xlrd
+import datetime, xlrd, operator
 
 def read_sheet(path, index):
     path = 'Analytics_Attachment.xlsx'
@@ -85,7 +85,7 @@ def loser_elimination_check(losing_team, teams, date):
 
 # Helper function to determine the 8th place team. This team will then be cross-examined
 # against the non-eliminated, non-playoff teams to see if it owns tiebreakers
-def determine_8th_place(conf, teams):
+def determine_8th_place(conf, teams, date):
     
     # Find the lowest winning non-eliminated team
     worst_non_elim_team = ""
@@ -110,20 +110,121 @@ def determine_8th_place(conf, teams):
     # In all of these scenarios, the 8th seed must be determined.
     # There exists a 3-way tie for 7th.
     if len(playoff_teams) == 9 and playoff_teams[6][1] == playoff_teams[7][1] == playoff_teams[8][1]:
-        # Playing around with the results, there was never a division leader involved in a 3-way tie for 7th. Next tiebreak:
+        # Playing around with the results, there was never a division leader involved in a 3-way tie for 7th. Onto the next tiebreak.
+        # Best winning percentage in all games among the tied teams
+        tied_teams = {
+            playoff_teams[6][0]: 1.0, 
+            playoff_teams[7][0]: 1.0, 
+            playoff_teams[8][0]: 1.0
+        }
 
+        for team in tied_teams:
+            other_teams = (other_team for other_team in tied_teams if team != other_team)
+            wins = 0
+            games = 0
 
+            for other_team in other_teams:
+                # print team + " games against " + other_team + " :: " + str(teams[team]["Schedule"][other_team]["Games"])
+                wins += teams[team]["Schedule"][other_team]["Wins"]
+                games += teams[team]["Schedule"][other_team]["Games"]
+
+            tied_teams[team] = float(wins) / games
+
+        # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+        tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
+        # The middle element in tied_teams will be the eight seed
+        return tied_teams[1][0]
 
     # There exists a tie for 8th.
     elif len(playoff_teams) == 9 and playoff_teams[7][1] == playoff_teams[8][1]:
-        x = 1
+        # There was never a division leader involved in a tie for 8th. Onto the next tiebreak.
+        # Best winning percentage in all games among the tied teams
+        win_perc = float(teams[playoff_teams[7][0]]["Schedule"][playoff_teams[8][0]]["Wins"]) / \
+                    teams[playoff_teams[7][0]]["Schedule"][playoff_teams[8][0]]["Games"]
+        if win_perc > 0.5:
+            return playoff_teams[7][0]
+        elif win_perc < 0.5:
+            return playoff_teams[8][0]
+        else:
+            # Printing the results, this case was reached once between the Bulls and Hornets
+            # Neither of them were division leaders not in the same division. Onto the next tiebreak: conference record
+            # print "Next tiebreak between " + playoff_teams[7][0] + " " + playoff_teams[8][0]
+            tied_teams = {
+                playoff_teams[7][0]: 1.0,
+                playoff_teams[8][0]: 1.0
+            }
+
+            for team in tied_teams:
+                other_teams = (other_team for other_team in conf if other_team != team)
+                wins = 0
+                games = 0
+
+                for other_team in other_teams:
+                    wins += teams[team]["Schedule"][other_team]["Wins"]
+                    games += teams[team]["Schedule"][other_team]["Games"]
+
+                tied_teams[team] = float(wins) / games
+
+            # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+            tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
+            return tied_teams[0][0]
+
+
         # print "tie for 8th between: " + playoff_teams[7][0] + " and " + playoff_teams[8][0]
     # There exists a tie for 7th.
     elif playoff_teams[6][1] == playoff_teams[7][1]:
-        x = 1
-        # print "tie for 7th between: " + playoff_teams[6][0] + " and " + playoff_teams[7][0]
+        win_perc = float(teams[playoff_teams[6][0]]["Schedule"][playoff_teams[7][0]]["Wins"]) / \
+                   teams[playoff_teams[6][0]]["Schedule"][playoff_teams[7][0]]["Games"]
+        if win_perc > 0.5:
+            return playoff_teams[6][0]
+        elif win_perc < 0.5:
+            return playoff_teams[7][0]
+        else:
 
-    return worst_non_elim_team, non_elim_win_perc
+            tied_teams = {
+                playoff_teams[6][0]: 1.0,
+                playoff_teams[7][0]: 1.0
+            }
+
+            if teams[playoff_teams[6][0]]["Division"] == teams[playoff_teams[7][0]]["Division"]:
+                # Teams are in the same division. Determine who has better divisional record
+                division = teams[playoff_teams[6][0]]["Division"]
+
+                for team in tied_teams:
+                    wins = 0
+                    games = 0
+
+                    division_teams = (other_team for other_team in conf if teams[other_team]["Division"] == division and other_team != team)
+                    # print team
+                    for div_team in division_teams:
+                        # print div_team + "   " + str(teams[team]["Schedule"][div_team])
+                        wins += teams[team]["Schedule"][div_team]["Wins"]
+                        games += teams[team]["Schedule"][div_team]["Games"]
+
+                    tied_teams[team] = float(wins) / games
+
+                # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+                tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)             
+                    
+            else:
+                for team in tied_teams:
+                    other_teams = (other_team for other_team in conf if other_team != team)
+                    wins = 0
+                    games = 0
+
+                    for other_team in other_teams:
+                        wins += teams[team]["Schedule"][other_team]["Wins"]
+                        games += teams[team]["Schedule"][other_team]["Games"]
+
+                    tied_teams[team] = float(wins) / games
+
+                # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+                tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
+
+            # tied_teams[0] is 7th seed. tied_teams[1] is 8th seed
+            return tied_teams[1][0] 
+
+    return playoff_teams[7][0]
 
 
 # todo: instead of checking for elimination after every result, check after every date. less work. this will be one function instead of two.
@@ -134,14 +235,16 @@ def elimination_check(teams, date):
     # Break it down by conference
     east = []
     west = []
-    
+
     for team in teams:
         if teams[team]["Conference"] == "East":
             east.append(team)
         else:
             west.append(team)
 
-    worst_team_alive, win_perc = determine_8th_place(conf, teams)
+    eigth_seed = determine_8th_place(east, teams, date)
+
+    eigth_seed = determine_8th_place(west, teams, date)
 
     # todo: 2 teams could get eliminated from 1 win. possibly find lowest win totals
 
