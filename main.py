@@ -31,7 +31,7 @@ def main(args):
         if current_date != score[0]:
             # If it's a new date, check for eliminations on previous date
             if tiebreak_check:
-                teams = elimination_check(teams, current_date)
+                teams = elimination_check(teams, scores, current_date)
             # Update the date
             current_date = score[0]
         
