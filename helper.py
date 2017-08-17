@@ -1,15 +1,15 @@
-# Helper module to main script
+# Helper module to the main script -- contains the functionality to determine & break tie-breakers and eliminate teams
 import datetime, xlrd, operator
 
 
-def read_sheet(path, index):
-    path = 'Analytics_Attachment.xlsx'
-
-    workbook = xlrd.open_workbook(path)
+# Reads the given input xlsx file, and returns a list of the data contained on an excel sheet
+# file  -- excel file to investigate
+# index -- index of the sheet on the excel file to read 
+def read_sheet(file, index):
+    file = 'Analytics_Attachment.xlsx'
+    workbook = xlrd.open_workbook(file)
     worksheet = workbook.sheet_by_index(index)
-
     offset = 0
-
     rows = []
     for i, row in enumerate(range(worksheet.nrows)):
         if i <= offset:  # (Optionally) skip headers
@@ -26,16 +26,16 @@ def read_sheet(path, index):
             else:
                 r.append(worksheet.cell_value(i, j))
         rows.append(r)
-
     return rows
 
 
+# Takes in the raw data read from the Division_Info sheet and initalizes a dictionary corresponding to this data
+# team data -- list of data from the Division_Info sheet
 def initialize_team_data(team_data):
+    # The dictionary data structure that will be used throughout the module
     teams = {}
-    team_names = []
-
+    # Initialize appropriate data for each team
     for team in team_data:
-        team_names.append(team[0])
         teams[team[0]] = {
             "Division": team[1],
             "Conference": team[2],
@@ -43,9 +43,9 @@ def initialize_team_data(team_data):
             "Wins": 0,
             "Losses": 0,
             "Eliminated": False,
+            "Elimination Date": "",
             "Schedule": {}
         }
-
     # Keep a record of games against each other.
     for team in teams:
         # Get 29 other teams
@@ -57,10 +57,32 @@ def initialize_team_data(team_data):
                 "Wins": 0,
                 "Losses": 0
             }
-
+    # Return the initialized teams dictionary data structure
     return teams
 
 
+# Output the eliminated teams and their elimination dates to the output csv file
+# teams -- overarching dictionary of data for every team
+def output_eliminated_teams(teams):
+    non_playoff_teams = (team for team in teams if teams[team]["Eliminated"])
+    eliminated_teams = {}
+    # Format the dates to MM/DD/YYYY instead of YYYY-MM-DD
+    for team in non_playoff_teams:
+        date = teams[team]["Elimination Date"].split("-")
+        date = date[1] + "/" + date[2] + "/" + date[0]
+        eliminated_teams[team] = date
+    # Sort the eliminated teams alphabetically
+    eliminated_teams = sorted(eliminated_teams.items(), key=lambda x: x[0])
+    # Write to the output file
+    with open('output.csv', 'w') as output:
+        output.write(','.join(["Team", "Date Eliminated"]) + '\n')
+        for team in eliminated_teams:
+            output.write(','.join(team) + '\n')
+
+
+# Takes in three teams with identical win %, determines their win % against each other, & returns the three teams sorted based on that
+# tied_teams -- three teams with identical win %, mapped to their win % against each other
+# teams      -- overarching dictionary of data for every team
 def break_3way_tie(tied_teams, teams):
     # Go through each tied team
     for team in tied_teams:
@@ -71,15 +93,18 @@ def break_3way_tie(tied_teams, teams):
         for other_team in other_teams:
             wins += teams[team]["Schedule"][other_team]["Wins"]
             games += teams[team]["Schedule"][other_team]["Games"]
-
+        # Calculate the win % against the other tied teams
         tied_teams[team] = float(wins) / games
-    
-    # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+    # Sort the tied_teams by win % against each other
     tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
     # Return the tied teams sorted by their win % against each other
     return tied_teams
 
 
+# Takes in two teams, determines their win % against conference opponents, & returns the two teams sorted based on that
+# tied_teams -- two teams, mapped to their win % against conference opponents
+# conf       -- teams in the tied_teams' conference
+# teams      -- overarching dictionary of data for every team
 def rank_conf_record(tied_teams, conf, teams):
     # Go through each tied team
     for team in tied_teams:
@@ -90,15 +115,19 @@ def rank_conf_record(tied_teams, conf, teams):
         for other_team in other_teams:
             wins += teams[team]["Schedule"][other_team]["Wins"]
             games += teams[team]["Schedule"][other_team]["Games"]
-
+        # Calculate their win % against the conference
         tied_teams[team] = float(wins) / games
-
-    # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+    # Sort the tied_teams by conference win %
     tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
     # Return the tied teams sorted by their win % against the conference
     return tied_teams
 
 
+# Takes in two teams, determines their win % against divisional opponents, & returns the two teams sorted based on that
+# tied_teams -- two teams in the same division, mapped to their divisional win %
+# conf       -- teams in the tied_teams' conference
+# division   -- name of the tied_teams' division
+# teams      -- overarching dictionary of data for every team
 def rank_div_record(tied_teams, conf, division, teams):
     # Go through each tied team
     for team in tied_teams:
@@ -109,15 +138,25 @@ def rank_div_record(tied_teams, conf, division, teams):
         for div_team in division_teams:
             wins += teams[team]["Schedule"][div_team]["Wins"]
             games += teams[team]["Schedule"][div_team]["Games"]
-
+        # Calculate their divisional win %
         tied_teams[team] = float(wins) / games
-
-    # Printing the results here, there was never a need to go to the next tiebreak as each win percentage was different
+    # Sort the tied_teams by divisional win %
     tied_teams = sorted(tied_teams.items(), key=operator.itemgetter(1), reverse=True)
-    # Return the tied teams sorted by their win % against the division
+    # Return the tied_teams sorted by their win % against the division
     return tied_teams
 
-def determine_div_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, scores, date, other_elig_playoff_teams):
+
+# In the scenario that the eigth seed loses out and the non eigth seed wins out, they have the same record and a tiebreaker must be determined.
+# This is that given scenario when the two teams share the same division.
+# teams                    -- overarching dictionary of data for every team
+# elig_playoff_teams       -- current 1-8 seeds in the two teams' conference
+# conf                     -- teams in the two teams' conference
+# eigth_seed               -- the current eigth seed in conf
+# non_eigth_seed           -- the potential eliminated team
+# scores                   -- every score from the season (to check for schedule purposes)
+# date                     -- the current date
+# other_elig_playoff_teams -- current 1-8 seeds in the other conference
+def determine_div_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, non_eigth_seed, scores, date, other_elig_playoff_teams):
     division = teams[eigth_seed]["Division"]
 
     tied_teams = {
@@ -125,7 +164,7 @@ def determine_div_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, sc
             "Wins": 0,
             "Games": 0
         },
-        team: {
+        non_eigth_seed: {
             "Wins": 0,
             "Games": 0
         }
@@ -140,14 +179,15 @@ def determine_div_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, sc
             tied_teams[tied_team]["Wins"] += teams[tied_team]["Schedule"][div_team]["Wins"]
             tied_teams[tied_team]["Games"] += teams[tied_team]["Schedule"][div_team]["Games"]
 
-    div_games_left = 16 - tied_teams[team]["Games"]
-    possible_div_wins = div_games_left + tied_teams[team]["Wins"]
+    div_games_left = 16 - tied_teams[non_eigth_seed]["Games"]
+    possible_div_wins = div_games_left + tied_teams[non_eigth_seed]["Wins"]
 
     if tied_teams[eigth_seed]["Wins"] > possible_div_wins:
-        teams[team]["Eliminated"] = True
-        print team + " eliminated using division record tiebreak against " + eigth_seed + " on " + date
+        teams[non_eigth_seed]["Eliminated"] = True
+        teams[non_eigth_seed]["Elimination Date"] = date
+        print non_eigth_seed + " eliminated using division record tiebreak against " + eigth_seed + " on " + date
     else:
-        teams = determine_conf_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, scores, date, other_elig_playoff_teams)
+        teams = determine_conf_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, non_eigth_seed, scores, date, other_elig_playoff_teams)
 
     return teams
 
@@ -174,6 +214,7 @@ def determine_conf_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, s
     
     if tied_teams[eigth_seed]["Wins"] > possible_conf_wins:
         teams[team]["Eliminated"] = True
+        teams[team]["Elimination Date"] = date
         print team + " eliminated using conference record tiebreak against " + eigth_seed + " on " + date
     else:
         # print tied_teams
@@ -183,7 +224,9 @@ def determine_conf_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, s
             if final_tiebreak:
                 print "Inclonclusive evidence"
             else:
-                print "Wait what"
+                teams[team]["Eliminated"] = True
+                teams[team]["Elimination Date"] = date
+                print team + " eliminated using conference record tiebreak against " + eigth_seed + " on " + date
         # print "FML on " + date
 
     return teams
@@ -210,8 +253,11 @@ def determine_playoff_record(teams, elig_playoff_teams, tied_teams, eigth_seed, 
     possible_win_perc = float(possible_wins) / tied_teams[team]["Games Scheduled"]
     next_tiebreak = False
 
-    if possible_win_perc >= (float(tied_teams[eigth_seed]["Wins"]) / tied_teams[eigth_seed]["Games Scheduled"]):
+    if possible_win_perc == (float(tied_teams[eigth_seed]["Wins"]) / tied_teams[eigth_seed]["Games Scheduled"]):
         next_tiebreak = True
+    elif (float(tied_teams[eigth_seed]["Wins"]) / tied_teams[eigth_seed]["Games Scheduled"]) > possible_win_perc:
+        teams[team]["Eliminated"] = True
+        teams[team]["Elimination Date"] = date
 
     return teams, next_tiebreak
 
@@ -334,6 +380,7 @@ def eliminate(conf, elig_playoff_teams, teams, eigth_seed, scores, date, other_e
             # If team is in the same division as the eigth seed, then they play 4 times.
             if division_flag and teams[eigth_seed]["Schedule"][team]["Wins"] >= 3:
                 teams[team]["Eliminated"] = True
+                teams[team]["Elimination Date"] = date
                 print team + " eliminated from losing 3 or more games to eigth seed in same division on " + date
             
             # Eigth seed and losing team are in same division, but eigth seed has not beaten them the majority of times yet.
@@ -350,62 +397,45 @@ def eliminate(conf, elig_playoff_teams, teams, eigth_seed, scores, date, other_e
                         games_against_eachother += 1
                 if games_against_eachother == 4 and teams[eigth_seed]["Schedule"][team]["Wins"] >= 3:
                     teams[team]["Eliminated"] = True
+                    teams[team]["Elimination Date"] = date
                     print team + " eliminated from losing majority of games to " + eigth_seed + " on " + date
                 elif games_against_eachother == 3 and teams[eigth_seed]["Schedule"][team]["Wins"] >= 2:
                     teams[team]["Eliminated"] = True
+                    teams[team]["Elimination Date"] = date
                     print team + " eliminated from losing majority of games to " + eigth_seed + " on " + date
                 else:
                     teams = determine_conf_tiebreak(teams, elig_playoff_teams, conf, eigth_seed, team, scores, date, other_elig_playoff_teams)
 
         elif teams[eigth_seed]["Wins"] > possible_wins:
             teams[team]["Eliminated"] = True
+            teams[team]["Elimination Date"] = date
             print team + " eliminated on " + date
 
     return teams
 
+# todo: pass in a dictionary mapping eliminated teams to the date in which they were eliminated. then write those mappings to csv file at the end
 
+# Wrapper function to perform elimination functionality
 def elimination_check(teams, scores, date):
 
-    # Break it down by conference
+    # Break down the teams by conference
     east = []
     west = []
-    conferences = []
-
     for team in teams:
         if teams[team]["Conference"] == "East":
             east.append(team)
         else:
             west.append(team)
-    # Handle east
+
+    # Eliminate teams from each conference in parallel
     e_elig_playoff_teams = determine_8th_place(east, teams)
     w_elig_playoff_teams = determine_8th_place(west, teams)
-    # print e_elig_playoff_teams
-    e_eigth_seed = e_elig_playoff_teams[-1]
-    w_eigth_seed = w_elig_playoff_teams[-1]
+
+    e_eigth_seed = e_elig_playoff_teams[7]
+    w_eigth_seed = w_elig_playoff_teams[7]
 
     teams = eliminate(east, e_elig_playoff_teams, teams, e_eigth_seed, scores, date, w_elig_playoff_teams)
     teams = eliminate(west, w_elig_playoff_teams, teams, w_eigth_seed, scores, date, e_elig_playoff_teams)
 
-
-
-    # for conf in conferences:
-    #     # todo: when determining 8th place, also return the rest of the playoff teams for tiebreak scenarios 5 and 6
-    #     eigth_seed = determine_8th_place(conf, teams)
-    #     teams = eliminate(conf, teams, eigth_seed, scores, date)
-        # print eigth_seed
-
-    # todo: look at 9th seeds or more if they are less than 4 wins behind 8th seed or cross-check scores
-
-    # eigth_seed = determine_8th_place(west, teams)
-    # print eigth_seed
-    # print '\n'
-    # # todo: 2 teams could get eliminated from 1 win. possibly find lowest win totals
-    # for team in teams[eigth_seed]["Schedule"]:
-    #     if teams[eigth_seed]["Schedule"][team]["Games"] == 4:
-    #         print team
     return teams
-
-
-
-
 

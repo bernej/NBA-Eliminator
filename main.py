@@ -60,9 +60,12 @@ def main(args):
             if highest_game_total >= 41: # Start checking for tiebreakers
                 tiebreak_check = True
 
-    # One last time
+    # One last
     teams = elimination_check(teams, scores, current_date)
     # todo: figure out how to write to xlsx file
+    output_eliminated_teams(teams)
+
+
 
 if __name__ == "__main__":
     main(sys.argv[0:])
